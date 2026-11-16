@@ -11,3 +11,17 @@ Key Features:
 • Quick Settings Tile & Home Widget: Switch playlist wallpapers instantly from the Quick Settings shade or Home Screen widget.
 • Battery-Smart & 100% Offline: Automatically pauses playback when the screen is off to save power. All media stays private inside your device storage with zero external uploads.
 • Modern UI & Bilingual Support: AMOLED Dark and Light themes with full English and Bengali (বাংলা) language support.
+
+................................................Bangla Version...........................................................
+
+Rony Live Wallpaper — ভার্সন ১.০ (নতুন রিলিজ)
+
+প্রথম রিলিজে যা যা থাকছে:
+• অ্যানিমেটেড ফার্স্ট-লঞ্চ অনবোর্ডিং: প্রথমবার অ্যাপ ওপেনে স্বাগতম স্ক্রিন, ফিচার পরিচিতি এবং ব্যাটারি ও অটো-স্টার্ট পারমিশন গাইড (স্কিপ বা পরে সেট করার সুবিধাসহ)।
+• সীমাহীন ভিডিও, GIF ও ছবি সাপোর্ট: যেকোনো দৈর্ঘ্যের ভিডিও সরাসরি অথবা ইচ্ছামতো Trim/Cut করে লাইভ ওয়ালপেপার হিসেবে সেট করার সুবিধা।
+• কাস্টম স্পিড (0.25x – 3.00x): প্রিসেট, স্লাইডার এবং কীবোর্ডে সরাসরি দশমিক সংখ্যা লিখে (যেমন 0.40x) প্লেব্যাক স্পিড সেট করার অপশন।
+• সম্পূর্ণ ফ্রেমিং ও পজিশন কন্ট্রোল: Crop, Fit, Fill, Center মোড, জুম, স্ক্রিনে টেনে পজিশন ঠিক করা, ব্রাইটনেস, লুপ এবং সাউন্ড মিউট।
+• স্মার্ট প্লেলিস্ট সিস্টেম: একাধিক ছবি, ভিডিও ও GIF দিয়ে প্লেলিস্ট তৈরি, বিদ্যমান প্লেলিস্ট এডিট ও ডিলিট, সেকেন্ড/মিনিট/ঘণ্টা/দিন/মাস অনুযায়ী অটো পরিবর্তন, শাফল মোড এবং প্লেলিস্টের প্রতিটি আইটেমের জন্য আলাদা জুম, স্পিড ও ট্রিম কাস্টমাইজেশন।
+• বুট ও ব্যাকগ্রাউন্ড সাপোর্ট: BootCompletedReceiver, WorkManager, পার্সিস্টেড JobScheduler, Quick Settings টাইল এবং হোম স্ক্রিন উইজেট।
+• আধুনিক ডিজাইন ও ভাষা: AMOLED ডার্ক ও লাইট থিম, বাংলা ও ইংরেজি ভাষা এবং Android 9 থেকে Android 16 পর্যন্ত পূর্ণ অপটিমাইজেশন।
+• ডেভেলপার কানেক্ট ও সাপোর্ট: অ্যাপের ভেতর থেকেই সরাসরি WhatsApp-এ যোগাযোগ এবং বিকাশ ও নগদের মাধ্যমে ডেভেলপার সাপোর্ট সুবিধা।
