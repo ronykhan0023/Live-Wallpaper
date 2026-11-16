@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Rony Live Wallpaper</string>
+    <string name="app_tagline">Bring Your Screen to Life</string>
+    <string name="wallpaper_service_description">Plays your custom videos and animated GIFs at 0.25x to 3.0x speed with battery-aware rendering.</string>
+    <string name="quick_tile_label">Rony Wallpaper</string>
+    <string name="widget_next_action">Next</string>
+    <string name="widget_description">Quickly switch playlist wallpapers or open Rony Live Wallpaper studio.</string>
+</resources>

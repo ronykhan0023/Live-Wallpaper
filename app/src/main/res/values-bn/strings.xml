@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">রনি লাইভ ওয়ালপেপার</string>
+    <string name="app_tagline">আপনার স্ক্রিনকে প্রাণবন্ত করুন</string>
+    <string name="wallpaper_service_description">ব্যাটারি সাশ্রয়ী রেন্ডারিং সহ ০.২৫x থেকে ৩.০x গতিতে আপনার পছন্দের ভিডিও এবং অ্যানিমেটেড GIF চালান।</string>
+</resources>

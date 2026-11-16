@@ -1,0 +1,6 @@
+{
+  "name": "Rony Live Wallpaper",
+  "description": "Native Android Video and Animated GIF Live Wallpaper studio with custom 0.25x-3.0x speed control, persistent media library, and battery-optimized WallpaperService.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
