@@ -46,6 +46,7 @@ class SettingsDataStore(private val context: Context) {
         val ACTIVE_SPEED = floatPreferencesKey("active_speed")
         val ACTIVE_LOOPING = booleanPreferencesKey("active_looping")
         val ACTIVE_MUTED = booleanPreferencesKey("active_muted")
+        val ACTIVE_VOLUME = floatPreferencesKey("active_volume")
         val ACTIVE_BRIGHTNESS = floatPreferencesKey("active_brightness")
         val ACTIVE_SCALE_MODE = stringPreferencesKey("active_scale_mode")
         val ACTIVE_ZOOM = floatPreferencesKey("active_zoom")
@@ -96,6 +97,7 @@ class SettingsDataStore(private val context: Context) {
             playbackSpeed = SpeedPresets.clamp(prefs[Keys.ACTIVE_SPEED] ?: SpeedPresets.DEFAULT_SPEED),
             isLooping = prefs[Keys.ACTIVE_LOOPING] ?: true,
             isMuted = prefs[Keys.ACTIVE_MUTED] ?: true,
+            volume = (prefs[Keys.ACTIVE_VOLUME] ?: 1.0f).coerceIn(0f, 1f),
             brightness = (prefs[Keys.ACTIVE_BRIGHTNESS] ?: 1.0f).coerceIn(0.3f, 1.2f),
             scaleMode = prefs[Keys.ACTIVE_SCALE_MODE]?.let {
                 runCatching { ScaleMode.valueOf(it) }.getOrNull()
@@ -162,6 +164,7 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.ACTIVE_SPEED] = SpeedPresets.clamp(item.playbackSpeed)
             prefs[Keys.ACTIVE_LOOPING] = item.isLooping
             prefs[Keys.ACTIVE_MUTED] = item.isMuted
+            prefs[Keys.ACTIVE_VOLUME] = item.volume.coerceIn(0f, 1f)
             prefs[Keys.ACTIVE_BRIGHTNESS] = item.brightness.coerceIn(0.3f, 1.2f)
             prefs[Keys.ACTIVE_SCALE_MODE] = item.scaleMode.name
             prefs[Keys.ACTIVE_ZOOM] = item.zoom.coerceIn(1.0f, 3.0f)

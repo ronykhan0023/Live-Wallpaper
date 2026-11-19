@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.ui.components.FrostedBarSurface
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.i18n.LocalAppStrings
@@ -83,25 +85,32 @@ fun OptimizationScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        Row(
+        FrostedBarSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
-            IconButton(
-                onClick = onBack,
+            Row(
                 modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .testTag("optimization_back_btn")
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("optimization_back_btn")
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+                Text(
+                    text = strings.optimizationScreenTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
             }
-            Text(
-                text = strings.optimizationScreenTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
         }
 
         LazyColumn(

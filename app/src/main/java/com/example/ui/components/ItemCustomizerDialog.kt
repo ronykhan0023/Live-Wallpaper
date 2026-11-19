@@ -93,6 +93,7 @@ fun ItemCustomizerDialog(
         speed: Float,
         isLooping: Boolean,
         isMuted: Boolean,
+        volume: Float,
         brightness: Float,
         scaleMode: ScaleMode,
         zoom: Float,
@@ -111,6 +112,7 @@ fun ItemCustomizerDialog(
     }
     var isLooping by remember(wallpaper.id) { mutableStateOf(wallpaper.isLooping) }
     var isMuted by remember(wallpaper.id) { mutableStateOf(wallpaper.isMuted) }
+    var volume by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.volume) }
     var brightness by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.brightness) }
     var scaleMode by remember(wallpaper.id) { mutableStateOf(wallpaper.scaleMode) }
     var zoom by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.zoom) }
@@ -208,6 +210,7 @@ fun ItemCustomizerDialog(
                             playbackSpeed = speed,
                             isLooping = isLooping,
                             isMuted = isMuted,
+                            volume = volume,
                             brightness = brightness,
                             scaleMode = scaleMode,
                             zoom = zoom,
@@ -253,11 +256,22 @@ fun ItemCustomizerDialog(
                                         shape = CircleShape
                                     ) {
                                         IconButton(
-                                            onClick = { isMuted = !isMuted },
+                                            onClick = {
+                                                if (isMuted) {
+                                                    if (volume <= 0.01f) volume = 1.0f
+                                                    isMuted = false
+                                                } else {
+                                                    isMuted = true
+                                                }
+                                            },
                                             modifier = Modifier.size(34.dp)
                                         ) {
                                             Icon(
-                                                imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                                imageVector = if (isMuted || volume <= 0.005f) {
+                                                    Icons.AutoMirrored.Filled.VolumeOff
+                                                } else {
+                                                    Icons.AutoMirrored.Filled.VolumeUp
+                                                },
                                                 contentDescription = strings.muteAudio,
                                                 tint = Color.White,
                                                 modifier = Modifier.size(18.dp)
@@ -454,6 +468,16 @@ fun ItemCustomizerDialog(
                                 onCheckedChange = { isLooping = it }
                             )
                         }
+
+                        if (wallpaper.mediaType == MediaType.VIDEO) {
+                            VideoSoundControlSection(
+                                isMuted = isMuted,
+                                volume = volume,
+                                onMuteChange = { isMuted = it },
+                                onVolumeChange = { volume = it },
+                                testTagPrefix = "customizer"
+                            )
+                        }
                     }
 
                     // Video Trim / Duration Control
@@ -538,6 +562,7 @@ fun ItemCustomizerDialog(
                                 applySpeedFromSliderOrChip(SpeedPresets.DEFAULT_SPEED)
                                 isLooping = true
                                 isMuted = true
+                                volume = 1.0f
                                 brightness = 1.0f
                                 scaleMode = ScaleMode.CROP
                                 zoom = 1.0f
@@ -585,6 +610,7 @@ fun ItemCustomizerDialog(
                                 speed,
                                 isLooping,
                                 isMuted,
+                                volume,
                                 brightness,
                                 scaleMode,
                                 zoom,

@@ -46,6 +46,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.domain.model.MediaType
 import com.example.domain.model.ScaleMode
+import com.example.engine.ExoPlayerAudioHelper
 import com.example.engine.GifFrameDecoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -71,6 +72,7 @@ fun LiveMediaPreview(
     modifier: Modifier = Modifier,
     trimStartMs: Long = 0L,
     trimEndMs: Long = 0L,
+    volume: Float = 1.0f,
     allowDragPosition: Boolean = false,
     onOffsetChange: ((Float, Float) -> Unit)? = null
 ) {
@@ -102,6 +104,7 @@ fun LiveMediaPreview(
                 playbackSpeed = playbackSpeed,
                 isLooping = isLooping,
                 isMuted = isMuted,
+                volume = volume,
                 brightness = brightness,
                 scaleMode = scaleMode,
                 zoom = zoom,
@@ -144,6 +147,7 @@ private fun VideoTexturePreview(
     playbackSpeed: Float,
     isLooping: Boolean,
     isMuted: Boolean,
+    volume: Float,
     brightness: Float,
     scaleMode: ScaleMode,
     zoom: Float,
@@ -164,13 +168,18 @@ private fun VideoTexturePreview(
     var textureViewRef by remember { mutableStateOf<TextureView?>(null) }
     var surfaceRef by remember { mutableStateOf<Surface?>(null) }
 
+    val currentIsMuted by rememberUpdatedState(isMuted)
+    val currentVolume by rememberUpdatedState(volume)
     val player = remember(filePath) {
         val renderersFactory = DefaultRenderersFactory(context.applicationContext)
             .setEnableDecoderFallback(true)
-        ExoPlayer.Builder(context.applicationContext, renderersFactory).build()
+        ExoPlayerAudioHelper.configureBuilderAudio(
+            ExoPlayer.Builder(context.applicationContext, renderersFactory)
+        ).build()
     }
 
     LaunchedEffect(player, filePath, trimStartMs, trimEndMs) {
+        ExoPlayerAudioHelper.applyAudioState(player, currentIsMuted, currentVolume)
         val builder = MediaItem.Builder().setUri(File(filePath).toURI().toString())
         if (trimStartMs > 0L || trimEndMs > 0L) {
             val clipBuilder = MediaItem.ClippingConfiguration.Builder()
@@ -192,6 +201,17 @@ private fun VideoTexturePreview(
                     videoH = videoSize.height
                 }
             }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                ExoPlayerAudioHelper.applyAudioState(player, currentIsMuted, currentVolume)
+            }
+
+            override fun onVolumeChanged(newVolume: Float) {
+                val expected = if (currentIsMuted || currentVolume <= 0.005f) 0f else currentVolume.coerceIn(0f, 1f)
+                if (kotlin.math.abs(newVolume - expected) > 0.015f) {
+                    ExoPlayerAudioHelper.applyAudioState(player, currentIsMuted, currentVolume)
+                }
+            }
         }
         player.addListener(listener)
         onDispose {
@@ -207,7 +227,10 @@ private fun VideoTexturePreview(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> player.pause()
-                Lifecycle.Event.ON_RESUME -> if (isPlaying) player.play()
+                Lifecycle.Event.ON_RESUME -> {
+                    ExoPlayerAudioHelper.applyAudioState(player, currentIsMuted, currentVolume)
+                    if (isPlaying) player.play()
+                }
                 else -> Unit
             }
         }
@@ -215,10 +238,10 @@ private fun VideoTexturePreview(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(player, playbackSpeed, isLooping, isMuted, isPlaying) {
+    LaunchedEffect(player, playbackSpeed, isLooping, isMuted, volume, isPlaying) {
         player.playbackParameters = PlaybackParameters(playbackSpeed.coerceIn(0.25f, 3.0f))
         player.repeatMode = if (isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-        player.volume = if (isMuted) 0f else 1f
+        ExoPlayerAudioHelper.applyAudioState(player, isMuted, volume)
         player.playWhenReady = isPlaying
         if (isPlaying) {
             player.play()

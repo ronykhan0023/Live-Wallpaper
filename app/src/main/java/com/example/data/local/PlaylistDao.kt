@@ -29,6 +29,9 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY sortOrder ASC")
     suspend fun getOrderedEntries(playlistId: Long): List<PlaylistItemEntity>
 
+    @Query("SELECT COUNT(DISTINCT playlistId) FROM playlist_items WHERE wallpaperId = :wallpaperId")
+    suspend fun countPlaylistsContainingWallpaper(wallpaperId: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long
 

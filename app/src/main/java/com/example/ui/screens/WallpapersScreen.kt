@@ -29,14 +29,17 @@ import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +61,8 @@ import com.example.R
 import com.example.domain.model.MediaFilter
 import com.example.domain.model.SortOption
 import com.example.domain.model.WallpaperItem
+import com.example.ui.components.FrostedBarSurface
+import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.components.WallpaperMediaCard
 import com.example.ui.i18n.LocalAppStrings
@@ -79,6 +84,7 @@ fun WallpapersScreen(
     onApplyClick: (WallpaperItem) -> Unit,
     onToggleFavorite: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
+    onReplace: (WallpaperItem) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -94,15 +100,25 @@ fun WallpapersScreen(
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = strings.wallpaperLibrary,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-        )
+        FrostedBarSurface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = strings.wallpaperLibrary,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
+        val frostedButtonColors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -111,6 +127,7 @@ fun WallpapersScreen(
             OutlinedButton(
                 onClick = onOpenPlaylists,
                 shape = RoundedCornerShape(12.dp),
+                colors = frostedButtonColors,
                 modifier = Modifier
                     .weight(1f)
                     .testTag("library_playlists_btn")
@@ -124,6 +141,7 @@ fun WallpapersScreen(
                 OutlinedButton(
                     onClick = { sortMenuOpen = true },
                     shape = RoundedCornerShape(12.dp),
+                    colors = frostedButtonColors,
                     modifier = Modifier.testTag("sort_button")
                 ) {
                     Icon(Icons.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -184,11 +202,18 @@ fun WallpapersScreen(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f)
+            )
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        val frostedChipColors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -199,24 +224,28 @@ fun WallpapersScreen(
                 selected = mediaFilter == MediaFilter.ALL,
                 onClick = { onMediaFilterChange(MediaFilter.ALL) },
                 label = { Text(strings.filterAll) },
+                colors = frostedChipColors,
                 modifier = Modifier.testTag("filter_all")
             )
             FilterChip(
                 selected = mediaFilter == MediaFilter.VIDEOS,
                 onClick = { onMediaFilterChange(MediaFilter.VIDEOS) },
                 label = { Text(strings.filterVideos) },
+                colors = frostedChipColors,
                 modifier = Modifier.testTag("filter_videos")
             )
             FilterChip(
                 selected = mediaFilter == MediaFilter.GIFS,
                 onClick = { onMediaFilterChange(MediaFilter.GIFS) },
                 label = { Text(strings.filterGifs) },
+                colors = frostedChipColors,
                 modifier = Modifier.testTag("filter_gifs")
             )
             FilterChip(
                 selected = mediaFilter == MediaFilter.PHOTOS,
                 onClick = { onMediaFilterChange(MediaFilter.PHOTOS) },
                 label = { Text(strings.filterPhotos) },
+                colors = frostedChipColors,
                 modifier = Modifier.testTag("filter_photos")
             )
         }
@@ -227,67 +256,69 @@ fun WallpapersScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_empty_vault),
-                        contentDescription = strings.emptyLibraryTitle,
-                        modifier = Modifier
-                            .size(190.dp)
-                            .clip(MaterialTheme.shapes.large),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Text(
-                        text = strings.emptyLibraryTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = strings.emptyLibrarySubtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GradientPrimaryButton(
-                            text = strings.importVideo,
-                            icon = Icons.Filled.VideoLibrary,
-                            onClick = onImportVideo,
-                            modifier = Modifier.weight(1f, fill = false),
-                            testTag = "empty_import_video"
-                        )
-                        OutlinedButton(
-                            onClick = onImportGif,
+                GlassCard(contentPadding = PaddingValues(20.dp)) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_empty_vault),
+                            contentDescription = strings.emptyLibraryTitle,
                             modifier = Modifier
-                                .height(52.dp)
-                                .testTag("empty_import_gif"),
+                                .size(170.dp)
+                                .clip(MaterialTheme.shapes.large),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = strings.emptyLibraryTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = strings.emptyLibrarySubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GradientPrimaryButton(
+                                text = strings.importVideo,
+                                icon = Icons.Filled.VideoLibrary,
+                                onClick = onImportVideo,
+                                modifier = Modifier.weight(1f, fill = false),
+                                testTag = "empty_import_video"
+                            )
+                            OutlinedButton(
+                                onClick = onImportGif,
+                                modifier = Modifier
+                                    .height(52.dp)
+                                    .testTag("empty_import_gif"),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Filled.GifBox, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(strings.importGif)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = onImportPhotos,
+                            modifier = Modifier
+                                .height(48.dp)
+                                .testTag("empty_import_photos"),
                             shape = MaterialTheme.shapes.medium
                         ) {
-                            Icon(Icons.Filled.GifBox, contentDescription = null)
+                            Icon(Icons.Filled.Image, contentDescription = null)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(strings.importGif)
+                            Text(strings.importPhotos)
                         }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = onImportPhotos,
-                        modifier = Modifier
-                            .height(48.dp)
-                            .testTag("empty_import_photos"),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(Icons.Filled.Image, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(strings.importPhotos)
                     }
                 }
             }
@@ -309,6 +340,7 @@ fun WallpapersScreen(
                             renameTarget = item
                             renameText = item.title
                         },
+                        onReplaceClick = { onReplace(item) },
                         onDeleteClick = { deleteTarget = item }
                     )
                 }

@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class RonyDatabase : RoomDatabase() {
@@ -60,6 +60,12 @@ abstract class RonyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE wallpapers ADD COLUMN volume REAL NOT NULL DEFAULT 1.0")
+            }
+        }
+
         fun getInstance(context: Context): RonyDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -67,7 +73,7 @@ abstract class RonyDatabase : RoomDatabase() {
                     RonyDatabase::class.java,
                     "rony_live_wallpaper.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

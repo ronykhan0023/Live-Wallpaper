@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -93,6 +94,71 @@ import com.example.util.WallpaperHelper
 import java.io.File
 
 @Composable
+fun GtaEditionBackdrop(
+    modifier: Modifier = Modifier
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.background)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_gta6_edition),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alignment = Alignment.Center
+        )
+
+        val scrimBrush = if (isDark) {
+            Brush.verticalGradient(
+                0.0f to Color(0x52070511),
+                0.28f to Color(0x36090616),
+                0.70f to Color(0x40090616),
+                1.0f to Color(0x7306050D)
+            )
+        } else {
+            Brush.verticalGradient(
+                0.0f to Color(0xB8F6F3FC),
+                0.50f to Color(0x9EF7F4FD),
+                1.0f to Color(0xB8F2EFF9)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(scrimBrush)
+        )
+    }
+}
+
+@Composable
+fun FrostedBarSurface(
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp),
+    content: @Composable () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val containerColor = if (isDark) {
+        Color(0xD4121426)
+    } else {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
+    }
+    val borderBrush = if (isDark) RonyGradients.GlassBorderDark else RonyGradients.GlassBorderLight
+
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = shape,
+        border = BorderStroke(1.dp, borderBrush),
+        tonalElevation = if (isDark) 2.dp else 4.dp,
+        content = content
+    )
+}
+
+@Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
@@ -101,9 +167,9 @@ fun GlassCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val containerColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)
+        Color(0xCC14172B)
     } else {
-        MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
     }
     val borderBrush = if (isDark) RonyGradients.GlassBorderDark else RonyGradients.GlassBorderLight
 
@@ -112,6 +178,7 @@ fun GlassCard(
             .clip(MaterialTheme.shapes.large)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         color = containerColor,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.large,
         border = BorderStroke(1.dp, borderBrush),
         tonalElevation = if (isDark) 2.dp else 4.dp
@@ -263,9 +330,10 @@ fun DeveloperConnectSupportCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("support_developer_card"),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
             shape = MaterialTheme.shapes.medium,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
         ) {
             Row(
                 modifier = Modifier
@@ -492,6 +560,7 @@ fun WallpaperMediaCard(
     onApplyClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onRenameClick: () -> Unit,
+    onReplaceClick: () -> Unit = {},
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -509,7 +578,8 @@ fun WallpaperMediaCard(
             .clip(MaterialTheme.shapes.large)
             .clickable(onClick = onPreviewClick)
             .testTag("wallpaper_card_${item.id}"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.large,
         border = borderStroke,
         tonalElevation = 2.dp
@@ -725,6 +795,14 @@ fun WallpaperMediaCard(
                             onClick = {
                                 menuExpanded = false
                                 onRenameClick()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(strings.replaceLabel) },
+                            leadingIcon = { Icon(Icons.Filled.SwapHoriz, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onReplaceClick()
                             }
                         )
                         DropdownMenuItem(

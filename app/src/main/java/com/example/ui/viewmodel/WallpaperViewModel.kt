@@ -39,6 +39,9 @@ sealed interface UiEvent {
     data object SettingsSynced : UiEvent
     data object PlaylistActivated : UiEvent
     data object PlaylistUpdated : UiEvent
+    data object MediaReplaced : UiEvent
+    data object MediaReplaceFailed : UiEvent
+    data object PlaylistLastItemProtected : UiEvent
 }
 
 class WallpaperViewModel(
@@ -170,6 +173,52 @@ class WallpaperViewModel(
         }
     }
 
+    fun importForPlaylistSession(
+        uris: List<Uri>,
+        forcedType: MediaType? = null,
+        onImported: (List<Long>) -> Unit
+    ) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            _isImporting.value = true
+            val importedIds = mutableListOf<Long>()
+            uris.forEach { uri ->
+                repository.importMedia(uri, forcedType).onSuccess { item ->
+                    importedIds.add(item.id)
+                }
+            }
+            _isImporting.value = false
+            _storageSummary.value = repository.getStorageSummary()
+            if (importedIds.isNotEmpty()) {
+                onImported(importedIds)
+            } else {
+                _events.emit(UiEvent.ImportFailed)
+            }
+        }
+    }
+
+    fun discardSessionImports(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            repository.discardSessionImports(ids)
+            _storageSummary.value = repository.getStorageSummary()
+        }
+    }
+
+    fun replaceWallpaperMedia(targetId: Long, uri: Uri) {
+        viewModelScope.launch {
+            _isImporting.value = true
+            val result = repository.replaceWallpaperMedia(targetId, uri)
+            _isImporting.value = false
+            result.onSuccess {
+                _storageSummary.value = repository.getStorageSummary()
+                _events.emit(UiEvent.MediaReplaced)
+            }.onFailure {
+                _events.emit(UiEvent.MediaReplaceFailed)
+            }
+        }
+    }
+
     fun toggleFavorite(id: Long) {
         viewModelScope.launch {
             repository.toggleFavorite(id)
@@ -207,7 +256,8 @@ class WallpaperViewModel(
         offsetY: Float,
         trimStartMs: Long,
         trimEndMs: Long,
-        notifyIfActive: Boolean = false
+        notifyIfActive: Boolean = false,
+        volume: Float = 1.0f
     ) {
         viewModelScope.launch {
             repository.updateWallpaperCustomization(
@@ -221,7 +271,8 @@ class WallpaperViewModel(
                 offsetX = offsetX,
                 offsetY = offsetY,
                 trimStartMs = trimStartMs,
-                trimEndMs = trimEndMs
+                trimEndMs = trimEndMs,
+                volume = volume
             )
             if (notifyIfActive) {
                 _events.emit(UiEvent.SettingsSynced)
@@ -307,6 +358,109 @@ class WallpaperViewModel(
 
     fun deletePlaylist(playlistId: Long) {
         viewModelScope.launch { repository.deletePlaylist(playlistId) }
+    }
+
+    fun removeItemFromPlaylist(playlistId: Long, wallpaperId: Long) {
+        viewModelScope.launch {
+            val before = playlists.value.find { it.id == playlistId }
+            if (before != null && before.items.size <= 1) {
+                _events.emit(UiEvent.PlaylistLastItemProtected)
+                return@launch
+            }
+            repository.removeItemFromPlaylist(
+                playlistId = playlistId,
+                wallpaperId = wallpaperId,
+                alsoDeleteIfUnused = true
+            )
+            _storageSummary.value = repository.getStorageSummary()
+            _events.emit(UiEvent.PlaylistUpdated)
+        }
+    }
+
+    fun replaceItemInPlaylist(playlistId: Long, oldWallpaperId: Long, uri: Uri) {
+        viewModelScope.launch {
+            _isImporting.value = true
+            val result = repository.replaceItemInPlaylist(playlistId, oldWallpaperId, uri)
+            _isImporting.value = false
+            result.onSuccess {
+                _storageSummary.value = repository.getStorageSummary()
+                _events.emit(UiEvent.MediaReplaced)
+            }.onFailure {
+                _events.emit(UiEvent.MediaReplaceFailed)
+            }
+        }
+    }
+
+    fun commitPlaylistEditor(
+        existingPlaylistId: Long?,
+        name: String,
+        wallpaperIds: List<Long>,
+        intervalValue: Int,
+        intervalUnit: ScheduleUnit,
+        isShuffle: Boolean,
+        target: WallpaperTarget,
+        stagedCustomizations: Map<Long, WallpaperItem>,
+        pendingDeleteIds: Set<Long>,
+        replacedOldIds: Set<Long>,
+        sessionImportedIds: Set<Long>,
+        onActivatedAfterCreate: (() -> Unit)? = null
+    ) {
+        if (wallpaperIds.isEmpty()) return
+        viewModelScope.launch {
+            // 1. Apply any staged per-item adjustments only for retained items
+            val retainedSet = wallpaperIds.toSet()
+            stagedCustomizations.values.forEach { item ->
+                if (item.id in retainedSet) {
+                    repository.updateWallpaperCustomization(
+                        id = item.id,
+                        playbackSpeed = item.playbackSpeed,
+                        isLooping = item.isLooping,
+                        isMuted = item.isMuted,
+                        brightness = item.brightness,
+                        scaleMode = item.scaleMode,
+                        zoom = item.zoom,
+                        offsetX = item.offsetX,
+                        offsetY = item.offsetY,
+                        trimStartMs = item.trimStartMs,
+                        trimEndMs = item.trimEndMs,
+                        volume = item.volume
+                    )
+                }
+            }
+
+            // 2. Create or update playlist (this updates active wallpaper if active item changed)
+            if (existingPlaylistId != null) {
+                repository.updatePlaylist(
+                    playlistId = existingPlaylistId,
+                    name = name,
+                    wallpaperIds = wallpaperIds,
+                    intervalValue = intervalValue,
+                    intervalUnit = intervalUnit,
+                    isShuffle = isShuffle
+                )
+                _events.emit(UiEvent.PlaylistUpdated)
+            } else {
+                val createdId = repository.createPlaylist(
+                    name = name,
+                    wallpaperIds = wallpaperIds,
+                    intervalValue = intervalValue,
+                    intervalUnit = intervalUnit,
+                    isShuffle = isShuffle
+                )
+                repository.activatePlaylist(createdId, target)
+                _events.emit(UiEvent.PlaylistActivated)
+                onActivatedAfterCreate?.invoke()
+            }
+
+            // 3. Clean up deleted, replaced, or unselected session-imported media
+            val unusedSessionIds = sessionImportedIds.filter { it !in retainedSet }
+            val cleanupIds = (pendingDeleteIds + replacedOldIds + unusedSessionIds)
+                .filter { it !in retainedSet }
+            if (cleanupIds.isNotEmpty()) {
+                repository.cleanupRemovedPlaylistMedia(cleanupIds, sessionImportedIds)
+            }
+            _storageSummary.value = repository.getStorageSummary()
+        }
     }
 
     fun skipPlaylistNext() {

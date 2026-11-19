@@ -51,7 +51,9 @@ import com.example.domain.model.AppSettings
 import com.example.domain.model.SpeedPresets
 import com.example.domain.model.StorageSummary
 import com.example.domain.model.ThemeMode
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.ui.components.DeveloperConnectSupportCard
+import com.example.ui.components.FrostedBarSurface
 import com.example.ui.components.GlassCard
 import com.example.ui.i18n.LocalAppStrings
 import com.example.util.WallpaperHelper
@@ -86,14 +88,21 @@ fun SettingsScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            Text(
-                text = strings.navSettings,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            FrostedBarSurface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 720.dp)
-            )
+                    .widthIn(max = 720.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = strings.navSettings,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
         }
 
         // Appearance & Language

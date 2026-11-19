@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -61,10 +65,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -88,6 +92,7 @@ import com.example.domain.model.SpeedPresets
 import com.example.domain.model.WallpaperItem
 import com.example.domain.model.WallpaperPlaylist
 import com.example.domain.model.WallpaperTarget
+import com.example.ui.components.FrostedBarSurface
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.components.ItemCustomizerDialog
@@ -97,6 +102,7 @@ import com.example.ui.theme.CyanGlow
 import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmeraldLive
 import com.example.ui.theme.ObsidianBlack
+import com.example.ui.theme.RosePulse
 import com.example.ui.theme.SapphireBlue
 import java.io.File
 import java.text.DateFormat
@@ -113,27 +119,27 @@ fun PlaylistsScreen(
     onImportPhotos: () -> Unit,
     onImportVideos: () -> Unit,
     onImportGifs: () -> Unit,
-    onCreateAndActivatePlaylist: (
+    onImportForSession: (uris: List<Uri>, forcedType: MediaType?, onImported: (List<Long>) -> Unit) -> Unit,
+    onDiscardSessionImports: (List<Long>) -> Unit,
+    onCommitPlaylistEditor: (
+        existingPlaylistId: Long?,
         name: String,
         wallpaperIds: List<Long>,
         intervalValue: Int,
         intervalUnit: ScheduleUnit,
         isShuffle: Boolean,
-        target: WallpaperTarget
-    ) -> Unit,
-    onUpdatePlaylist: (
-        playlistId: Long,
-        name: String,
-        wallpaperIds: List<Long>,
-        intervalValue: Int,
-        intervalUnit: ScheduleUnit,
-        isShuffle: Boolean
+        target: WallpaperTarget,
+        stagedCustomizations: Map<Long, WallpaperItem>,
+        pendingDeleteIds: Set<Long>,
+        replacedOldIds: Set<Long>,
+        sessionImportedIds: Set<Long>
     ) -> Unit,
     onSaveItemCustomization: (
         id: Long,
         speed: Float,
         isLooping: Boolean,
         isMuted: Boolean,
+        volume: Float,
         brightness: Float,
         scaleMode: ScaleMode,
         zoom: Float,
@@ -142,6 +148,8 @@ fun PlaylistsScreen(
         trimStartMs: Long,
         trimEndMs: Long
     ) -> Unit,
+    onRemoveItemFromPlaylist: (playlistId: Long, wallpaperId: Long) -> Unit,
+    onReplaceItemInPlaylist: (playlistId: Long, oldWallpaperId: Long, uri: Uri) -> Unit,
     onActivatePlaylist: (Long, WallpaperTarget) -> Unit,
     onDeactivatePlaylist: () -> Unit,
     onSkipNext: () -> Unit,
@@ -152,8 +160,19 @@ fun PlaylistsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingPlaylist by remember { mutableStateOf<WallpaperPlaylist?>(null) }
     var customizingItemId by remember { mutableStateOf<Long?>(null) }
+    var pendingCardReplaceTarget by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    var pendingCardRemoveTarget by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     val customizingItem = remember(customizingItemId, allWallpapers) {
         allWallpapers.find { it.id == customizingItemId }
+    }
+    val cardReplaceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val targetPair = pendingCardReplaceTarget
+        pendingCardReplaceTarget = null
+        if (uri != null && targetPair != null) {
+            onReplaceItemInPlaylist(targetPair.first, targetPair.second, uri)
+        }
     }
 
     Column(
@@ -163,32 +182,39 @@ fun PlaylistsScreen(
             .navigationBarsPadding()
     ) {
         // Header
-        Row(
+        FrostedBarSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
-            IconButton(
-                onClick = onBack,
+            Row(
                 modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .testTag("playlists_back_btn")
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = strings.playlistsTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = strings.playlistsSubtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .testTag("playlists_back_btn")
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = strings.playlistsTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = strings.playlistsSubtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
+                }
             }
         }
 
@@ -402,6 +428,17 @@ fun PlaylistsScreen(
                         onDeactivate = onDeactivatePlaylist,
                         onEdit = { editingPlaylist = playlist },
                         onCustomizeItem = { item -> customizingItemId = item.id },
+                        onReplaceItem = { item ->
+                            pendingCardReplaceTarget = playlist.id to item.id
+                            cardReplaceLauncher.launch(arrayOf("video/*", "image/*"))
+                        },
+                        onRemoveItem = { item ->
+                            if (playlist.items.size <= 1) {
+                                onRemoveItemFromPlaylist(playlist.id, item.id)
+                            } else {
+                                pendingCardRemoveTarget = playlist.id to item.id
+                            }
+                        },
                         onDelete = { onDeletePlaylist(playlist.id) }
                     )
                 }
@@ -415,16 +452,25 @@ fun PlaylistsScreen(
             allWallpapers = allWallpapers,
             initialTarget = preferredTarget,
             strings = strings,
-            onImportPhotos = onImportPhotos,
-            onImportVideos = onImportVideos,
-            onImportGifs = onImportGifs,
-            onCustomizeItem = { item -> customizingItemId = item.id },
+            onImportForSession = onImportForSession,
+            onDiscardSessionImports = onDiscardSessionImports,
             onDismiss = { showCreateDialog = false },
-            onConfirmCreate = { name, ids, intervalVal, unit, shuffle, target ->
+            onCommit = { playlistId, name, ids, intervalVal, unit, shuffle, target, stagedCustomizations, pendingDeleteIds, replacedOldIds, sessionImportedIds ->
                 showCreateDialog = false
-                onCreateAndActivatePlaylist(name, ids, intervalVal, unit, shuffle, target)
-            },
-            onConfirmUpdate = { _, _, _, _, _, _ -> }
+                onCommitPlaylistEditor(
+                    playlistId,
+                    name,
+                    ids,
+                    intervalVal,
+                    unit,
+                    shuffle,
+                    target,
+                    stagedCustomizations,
+                    pendingDeleteIds,
+                    replacedOldIds,
+                    sessionImportedIds
+                )
+            }
         )
     }
 
@@ -434,15 +480,48 @@ fun PlaylistsScreen(
             allWallpapers = allWallpapers,
             initialTarget = preferredTarget,
             strings = strings,
-            onImportPhotos = onImportPhotos,
-            onImportVideos = onImportVideos,
-            onImportGifs = onImportGifs,
-            onCustomizeItem = { item -> customizingItemId = item.id },
+            onImportForSession = onImportForSession,
+            onDiscardSessionImports = onDiscardSessionImports,
             onDismiss = { editingPlaylist = null },
-            onConfirmCreate = { _, _, _, _, _, _ -> },
-            onConfirmUpdate = { playlistId, name, ids, intervalVal, unit, shuffle ->
+            onCommit = { playlistId, name, ids, intervalVal, unit, shuffle, target, stagedCustomizations, pendingDeleteIds, replacedOldIds, sessionImportedIds ->
                 editingPlaylist = null
-                onUpdatePlaylist(playlistId, name, ids, intervalVal, unit, shuffle)
+                onCommitPlaylistEditor(
+                    playlistId,
+                    name,
+                    ids,
+                    intervalVal,
+                    unit,
+                    shuffle,
+                    target,
+                    stagedCustomizations,
+                    pendingDeleteIds,
+                    replacedOldIds,
+                    sessionImportedIds
+                )
+            }
+        )
+    }
+
+    pendingCardRemoveTarget?.let { (playlistId, itemId) ->
+        AlertDialog(
+            onDismissRequest = { pendingCardRemoveTarget = null },
+            title = { Text(strings.removeItemConfirmTitle) },
+            text = { Text(strings.removeItemConfirmBody) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRemoveItemFromPlaylist(playlistId, itemId)
+                        pendingCardRemoveTarget = null
+                    },
+                    modifier = Modifier.testTag("confirm_remove_playlist_item_btn")
+                ) {
+                    Text(strings.delete)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCardRemoveTarget = null }) {
+                    Text(strings.cancel)
+                }
             }
         )
     }
@@ -451,12 +530,13 @@ fun PlaylistsScreen(
         ItemCustomizerDialog(
             wallpaper = itemToCustomize,
             onDismiss = { customizingItemId = null },
-            onSave = { id, speed, looping, muted, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
+            onSave = { id, speed, looping, muted, volume, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
                 onSaveItemCustomization(
                     id,
                     speed,
                     looping,
                     muted,
+                    volume,
                     brightness,
                     scale,
                     zoom,
@@ -479,6 +559,8 @@ private fun PlaylistCard(
     onDeactivate: () -> Unit,
     onEdit: () -> Unit,
     onCustomizeItem: (WallpaperItem) -> Unit,
+    onReplaceItem: (WallpaperItem) -> Unit,
+    onRemoveItem: (WallpaperItem) -> Unit,
     onDelete: () -> Unit
 ) {
     GlassCard(
@@ -554,59 +636,107 @@ private fun PlaylistCard(
 
         if (playlist.items.isNotEmpty()) {
             Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(playlist.items, key = { it.id }) { item ->
                     val thumbFile = remember(item.thumbnailPath, item.filePath) {
                         val t = File(item.thumbnailPath)
                         if (t.exists()) t else File(item.filePath)
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(width = 62.dp, height = 84.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(ObsidianBlack)
-                            .clickable { onCustomizeItem(item) }
-                            .testTag("playlist_card_item_${playlist.id}_${item.id}")
+                    Column(
+                        modifier = Modifier.width(86.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        AsyncImage(
-                            model = thumbFile,
-                            contentDescription = item.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(3.dp)
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.72f)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .height(104.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(ObsidianBlack)
+                                .clickable { onCustomizeItem(item) }
+                                .testTag("playlist_card_item_${playlist.id}_${item.id}")
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Tune,
-                                contentDescription = strings.adjustBtnLabel,
-                                tint = CyanGlow,
-                                modifier = Modifier.size(12.dp)
+                            AsyncImage(
+                                model = thumbFile,
+                                contentDescription = item.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(3.dp)
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.72f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Tune,
+                                    contentDescription = strings.adjustBtnLabel,
+                                    tint = CyanGlow,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(3.dp)
+                            ) {
+                                Text(
+                                    text = when (item.mediaType) {
+                                        MediaType.VIDEO -> "VID"
+                                        MediaType.GIF -> "GIF"
+                                        MediaType.IMAGE -> "IMG"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                         }
-                        Surface(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(3.dp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                text = when (item.mediaType) {
-                                    MediaType.VIDEO -> "VID"
-                                    MediaType.GIF -> "GIF"
-                                    MediaType.IMAGE -> "IMG"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
+                            Surface(
+                                onClick = { onReplaceItem(item) },
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp)
+                                    .testTag("playlist_card_replace_${playlist.id}_${item.id}")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SwapHoriz,
+                                        contentDescription = strings.replaceLabel,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            Surface(
+                                onClick = { onRemoveItem(item) },
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.75f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(32.dp)
+                                    .testTag("playlist_card_delete_${playlist.id}_${item.id}")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = strings.removeFromPlaylist,
+                                        tint = RosePulse,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -669,26 +799,21 @@ private fun PlaylistEditorDialog(
     allWallpapers: List<WallpaperItem>,
     initialTarget: WallpaperTarget,
     strings: AppStrings,
-    onImportPhotos: () -> Unit,
-    onImportVideos: () -> Unit,
-    onImportGifs: () -> Unit,
-    onCustomizeItem: (WallpaperItem) -> Unit,
+    onImportForSession: (uris: List<Uri>, forcedType: MediaType?, onImported: (List<Long>) -> Unit) -> Unit,
+    onDiscardSessionImports: (List<Long>) -> Unit,
     onDismiss: () -> Unit,
-    onConfirmCreate: (
+    onCommit: (
+        existingPlaylistId: Long?,
         name: String,
         wallpaperIds: List<Long>,
         intervalValue: Int,
         intervalUnit: ScheduleUnit,
         isShuffle: Boolean,
-        target: WallpaperTarget
-    ) -> Unit,
-    onConfirmUpdate: (
-        playlistId: Long,
-        name: String,
-        wallpaperIds: List<Long>,
-        intervalValue: Int,
-        intervalUnit: ScheduleUnit,
-        isShuffle: Boolean
+        target: WallpaperTarget,
+        stagedCustomizations: Map<Long, WallpaperItem>,
+        pendingDeleteIds: Set<Long>,
+        replacedOldIds: Set<Long>,
+        sessionImportedIds: Set<Long>
     ) -> Unit
 ) {
     val isEditing = existingPlaylist != null
@@ -713,21 +838,95 @@ private fun PlaylistEditorDialog(
             }
         }
     }
-    val initialLibraryIds = remember(existingPlaylist?.id) {
-        allWallpapers.map { it.id }.toMutableSet()
+    val sessionImportedIds = remember(existingPlaylist?.id) { mutableStateListOf<Long>() }
+    val pendingDeleteIds = remember(existingPlaylist?.id) { mutableStateListOf<Long>() }
+    val replacedOldIds = remember(existingPlaylist?.id) { mutableStateListOf<Long>() }
+    val stagedCustomizations = remember(existingPlaylist?.id) { mutableStateMapOf<Long, WallpaperItem>() }
+    var replaceTargetId by remember(existingPlaylist?.id) { mutableStateOf<Long?>(null) }
+    var editorCustomizingItemId by remember(existingPlaylist?.id) { mutableStateOf<Long?>(null) }
+
+    val handleCancelAndRollback: () -> Unit = {
+        val toDiscard = sessionImportedIds.toList()
+        if (toDiscard.isNotEmpty()) {
+            onDiscardSessionImports(toDiscard)
+        }
+        onDismiss()
     }
 
-    // Auto-select newly imported photos/videos/GIFs added while editing or creating
-    LaunchedEffect(allWallpapers) {
-        allWallpapers.forEach { item ->
-            if (initialLibraryIds.add(item.id) && !selectedIds.contains(item.id)) {
-                selectedIds.add(item.id)
+    val sessionPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            onImportForSession(uris, MediaType.IMAGE) { newIds ->
+                sessionImportedIds.addAll(newIds)
+                newIds.forEach { newId ->
+                    if (!selectedIds.contains(newId)) selectedIds.add(newId)
+                }
             }
         }
     }
 
+    val sessionVideoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            onImportForSession(uris, MediaType.VIDEO) { newIds ->
+                sessionImportedIds.addAll(newIds)
+                newIds.forEach { newId ->
+                    if (!selectedIds.contains(newId)) selectedIds.add(newId)
+                }
+            }
+        }
+    }
+
+    val sessionGifPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            onImportForSession(uris, MediaType.GIF) { newIds ->
+                sessionImportedIds.addAll(newIds)
+                newIds.forEach { newId ->
+                    if (!selectedIds.contains(newId)) selectedIds.add(newId)
+                }
+            }
+        }
+    }
+
+    val sessionReplacePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val oldId = replaceTargetId
+        replaceTargetId = null
+        if (uri != null && oldId != null) {
+            onImportForSession(listOf(uri), null) { newIds ->
+                val newId = newIds.firstOrNull() ?: return@onImportForSession
+                sessionImportedIds.add(newId)
+                replacedOldIds.add(oldId)
+                stagedCustomizations.remove(oldId)
+                val existingIdx = selectedIds.indexOf(oldId)
+                if (existingIdx >= 0) {
+                    selectedIds[existingIdx] = newId
+                } else {
+                    selectedIds.add(newId)
+                }
+            }
+        }
+    }
+
+    val visibleWallpapers = remember(
+        allWallpapers,
+        pendingDeleteIds.toList(),
+        replacedOldIds.toList(),
+        stagedCustomizations.toMap()
+    ) {
+        val hiddenSet = (pendingDeleteIds + replacedOldIds).toSet()
+        allWallpapers
+            .filter { it.id !in hiddenSet }
+            .map { stagedCustomizations[it.id] ?: it }
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = handleCancelAndRollback,
         title = {
             Text(
                 text = if (isEditing) strings.editPlaylist else strings.createPlaylist,
@@ -757,13 +956,13 @@ private fun PlaylistEditorDialog(
                     fontWeight = FontWeight.Bold
                 )
 
-                // Always allow quick importing new photos, videos, or GIFs straight into this playlist
+                // Always allow quick importing new photos, videos, or GIFs staged for this session
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
-                        onClick = onImportPhotos,
+                        onClick = { sessionPhotoPicker.launch(arrayOf("image/*")) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("dialog_import_photos_btn"),
@@ -774,7 +973,7 @@ private fun PlaylistEditorDialog(
                         Text(strings.filterPhotos, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     OutlinedButton(
-                        onClick = onImportVideos,
+                        onClick = { sessionVideoPicker.launch(arrayOf("video/*")) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("dialog_import_videos_btn"),
@@ -785,7 +984,7 @@ private fun PlaylistEditorDialog(
                         Text(strings.filterVideos, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     OutlinedButton(
-                        onClick = onImportGifs,
+                        onClick = { sessionGifPicker.launch(arrayOf("image/gif")) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("dialog_import_gifs_btn"),
@@ -797,7 +996,7 @@ private fun PlaylistEditorDialog(
                     }
                 }
 
-                if (allWallpapers.isEmpty()) {
+                if (visibleWallpapers.isEmpty()) {
                     Text(
                         text = strings.emptyLibrarySubtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -810,21 +1009,21 @@ private fun PlaylistEditorDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${selectedIds.size}/${allWallpapers.size}",
+                            text = "${selectedIds.size}/${visibleWallpapers.size}",
                             style = MaterialTheme.typography.labelMedium,
                             color = CyanGlow
                         )
                         TextButton(
                             onClick = {
-                                if (selectedIds.size == allWallpapers.size) {
+                                if (selectedIds.size == visibleWallpapers.size) {
                                     selectedIds.clear()
                                 } else {
                                     selectedIds.clear()
-                                    selectedIds.addAll(allWallpapers.map { it.id })
+                                    selectedIds.addAll(visibleWallpapers.map { it.id })
                                 }
                             }
                         ) {
-                            Text(if (selectedIds.size == allWallpapers.size) "Clear" else "Select All")
+                            Text(if (selectedIds.size == visibleWallpapers.size) "Clear" else "Select All")
                         }
                     }
 
@@ -834,8 +1033,8 @@ private fun PlaylistEditorDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(allWallpapers, key = { it.id }) { item ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(visibleWallpapers, key = { it.id }) { item ->
                             val isSelected = selectedIds.contains(item.id)
                             val orderIndex = selectedIds.indexOf(item.id)
                             val thumbFile = remember(item.thumbnailPath, item.filePath) {
@@ -843,13 +1042,13 @@ private fun PlaylistEditorDialog(
                                 if (t.exists()) t else File(item.filePath)
                             }
                             Column(
-                                modifier = Modifier.width(80.dp),
+                                modifier = Modifier.width(108.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .aspectRatio(9f / 13f)
+                                        .aspectRatio(9f / 12f)
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(ObsidianBlack)
                                         .border(
@@ -925,6 +1124,7 @@ private fun PlaylistEditorDialog(
                                         }
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = item.title,
                                     style = MaterialTheme.typography.labelSmall,
@@ -932,9 +1132,9 @@ private fun PlaylistEditorDialog(
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                Spacer(modifier = Modifier.height(3.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Surface(
-                                    onClick = { onCustomizeItem(item) },
+                                    onClick = { editorCustomizingItemId = item.id },
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
@@ -942,22 +1142,91 @@ private fun PlaylistEditorDialog(
                                         .testTag("dialog_adjust_item_${item.id}")
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
                                         horizontalArrangement = Arrangement.Center,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.Tune,
                                             contentDescription = strings.adjustBtnLabel,
-                                            modifier = Modifier.size(12.dp),
+                                            modifier = Modifier.size(13.dp),
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
-                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = strings.adjustBtnLabel,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Surface(
+                                    onClick = {
+                                        replaceTargetId = item.id
+                                        sessionReplacePicker.launch(arrayOf("video/*", "image/*"))
+                                    },
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("dialog_replace_item_${item.id}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.SwapHoriz,
+                                            contentDescription = strings.replaceLabel,
+                                            modifier = Modifier.size(13.dp),
+                                            tint = CyanGlow
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = strings.replaceLabel,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Surface(
+                                    onClick = {
+                                        pendingDeleteIds.add(item.id)
+                                        selectedIds.remove(item.id)
+                                        stagedCustomizations.remove(item.id)
+                                    },
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.72f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("dialog_delete_item_${item.id}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = strings.delete,
+                                            modifier = Modifier.size(13.dp),
+                                            tint = RosePulse
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = strings.delete,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = RosePulse,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -1070,25 +1339,24 @@ private fun PlaylistEditorDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (existingPlaylist != null) {
-                        onConfirmUpdate(
-                            existingPlaylist.id,
-                            name.ifBlank { existingPlaylist.name },
-                            selectedIds.toList(),
-                            intervalValue,
-                            intervalUnit,
-                            isShuffle
-                        )
+                    val finalName = if (existingPlaylist != null) {
+                        name.ifBlank { existingPlaylist.name }
                     } else {
-                        onConfirmCreate(
-                            name.ifBlank { "Playlist $intervalValue ${unitLabel(intervalUnit, strings)}" },
-                            selectedIds.toList(),
-                            intervalValue,
-                            intervalUnit,
-                            isShuffle,
-                            target
-                        )
+                        name.ifBlank { "Playlist $intervalValue ${unitLabel(intervalUnit, strings)}" }
                     }
+                    onCommit(
+                        existingPlaylist?.id,
+                        finalName,
+                        selectedIds.toList(),
+                        intervalValue,
+                        intervalUnit,
+                        isShuffle,
+                        target,
+                        stagedCustomizations.toMap(),
+                        pendingDeleteIds.toSet(),
+                        replacedOldIds.toSet(),
+                        sessionImportedIds.toSet()
+                    )
                 },
                 enabled = selectedIds.isNotEmpty(),
                 modifier = Modifier.testTag("playlist_create_apply_btn")
@@ -1099,11 +1367,40 @@ private fun PlaylistEditorDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = handleCancelAndRollback,
+                modifier = Modifier.testTag("playlist_dialog_cancel_btn")
+            ) {
                 Text(strings.cancel)
             }
         }
     )
+
+    editorCustomizingItemId?.let { targetItemId ->
+        val itemToEdit = visibleWallpapers.find { it.id == targetItemId }
+        if (itemToEdit != null) {
+            ItemCustomizerDialog(
+                wallpaper = itemToEdit,
+                onDismiss = { editorCustomizingItemId = null },
+                onSave = { id, speed, looping, muted, volume, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
+                    stagedCustomizations[id] = itemToEdit.copy(
+                        playbackSpeed = speed,
+                        isLooping = looping,
+                        isMuted = muted,
+                        volume = volume,
+                        brightness = brightness,
+                        scaleMode = scale,
+                        zoom = zoom,
+                        offsetX = ox,
+                        offsetY = oy,
+                        trimStartMs = trimStart,
+                        trimEndMs = trimEnd
+                    )
+                    editorCustomizingItemId = null
+                }
+            )
+        }
+    }
 }
 
 fun unitLabel(unit: ScheduleUnit, strings: AppStrings): String = when (unit) {

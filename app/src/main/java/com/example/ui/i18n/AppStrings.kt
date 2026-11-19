@@ -226,7 +226,19 @@ data class AppStrings(
     val onboardingReadyStep1: String,
     val onboardingReadyStep2: String,
     val onboardingReadyStep3: String,
-    val onboardingCompatibilityBadge: String
+    val onboardingCompatibilityBadge: String,
+    val videoSoundTitle: String,
+    val videoVolumeLabel: String,
+    val soundMutedState: String,
+    val soundLowHint: String,
+    val soundHighHint: String,
+    val replaceLabel: String,
+    val replaceSuccess: String,
+    val replaceError: String,
+    val removeFromPlaylist: String,
+    val cannotRemoveLastPlaylistItem: String,
+    val removeItemConfirmTitle: String,
+    val removeItemConfirmBody: String
 )
 
 val EnglishStrings = AppStrings(
@@ -452,7 +464,19 @@ val EnglishStrings = AppStrings(
     onboardingReadyStep1 = "1. Import any Video, GIF, or Photo directly from your device",
     onboardingReadyStep2 = "2. Customize Speed (0.25x–3.00x), Trim/Cut, Zoom & Position",
     onboardingReadyStep3 = "3. Tap Apply Wallpaper to set on Home or Lock screen",
-    onboardingCompatibilityBadge = "Optimized for Android 9 – 16"
+    onboardingCompatibilityBadge = "Optimized for Android 9 – 16",
+    videoSoundTitle = "Background Video Sound",
+    videoVolumeLabel = "Volume",
+    soundMutedState = "Muted (Silent)",
+    soundLowHint = "Soft",
+    soundHighHint = "Loud",
+    replaceLabel = "Replace",
+    replaceSuccess = "Media replaced successfully",
+    replaceError = "Could not replace selected media",
+    removeFromPlaylist = "Remove",
+    cannotRemoveLastPlaylistItem = "A playlist must keep at least 1 item. Delete the playlist instead.",
+    removeItemConfirmTitle = "Delete Item from Playlist?",
+    removeItemConfirmBody = "This removes the item from this playlist (and deletes it from the vault if unused elsewhere)."
 )
 
 val BengaliStrings = AppStrings(
@@ -678,7 +702,19 @@ val BengaliStrings = AppStrings(
     onboardingReadyStep1 = "১. ডিভাইস থেকে যেকোনো ভিডিও, GIF বা ছবি ইমপোর্ট করুন",
     onboardingReadyStep2 = "২. নিজের মতো স্পিড (0.25x–3.00x), কাট/ট্রিম ও জুম সেট করুন",
     onboardingReadyStep3 = "৩. 'ওয়ালপেপার সেট করুন' চেপে হোম বা লক স্ক্রিনে প্রয়োগ করুন",
-    onboardingCompatibilityBadge = "Android 9 – 16 সম্পূর্ণ সাপোর্টেড"
+    onboardingCompatibilityBadge = "Android 9 – 16 সম্পূর্ণ সাপোর্টেড",
+    videoSoundTitle = "ব্যাকগ্রাউন্ড ভিডিও সাউন্ড",
+    videoVolumeLabel = "সাউন্ড ভলিউম",
+    soundMutedState = "মিউট (নীরব)",
+    soundLowHint = "আস্তে",
+    soundHighHint = "জোরে",
+    replaceLabel = "রিপ্লেস",
+    replaceSuccess = "মিডিয়া সফলভাবে রিপ্লেস হয়েছে",
+    replaceError = "মিডিয়া রিপ্লেস করা যায়নি",
+    removeFromPlaylist = "মুছুন",
+    cannotRemoveLastPlaylistItem = "প্লেলিস্টে কমপক্ষে ১টি আইটেম থাকতে হবে। পুরো প্লেলিস্ট মুছতে ডিলিট বাটন চাপুন।",
+    removeItemConfirmTitle = "প্লেলিস্ট থেকে মুছবেন?",
+    removeItemConfirmBody = "এটি প্লেলিস্ট থেকে সরে যাবে (এবং অন্য কোথাও ব্যবহৃত না থাকলে ভল্ট থেকেও মুছে যাবে)।"
 )
 
 fun stringsFor(language: AppLanguage): AppStrings = when (language) {

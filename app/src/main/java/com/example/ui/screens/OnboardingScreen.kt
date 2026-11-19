@@ -232,6 +232,7 @@ fun OnboardingScreen(
                         onClick = onToggleLanguage,
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         border = BorderStroke(1.dp, RonyGradients.GlassBorderDark),
                         modifier = Modifier
                             .minimumInteractiveComponentSize()

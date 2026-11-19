@@ -74,6 +74,7 @@ import com.example.domain.model.ThemeMode
 import com.example.domain.model.WallpaperItem
 import com.example.domain.model.WallpaperPlaylist
 import com.example.ui.components.DeveloperConnectSupportCard
+import com.example.ui.components.FrostedBarSurface
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.components.LiveMediaPreview
@@ -128,69 +129,85 @@ fun HomeScreen(
     ) {
         // Brand Header
         item {
-            Row(
+            FrostedBarSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .widthIn(max = 720.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                shape = RoundedCornerShape(22.dp)
             ) {
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    RonyBrandMark(modifier = Modifier.size(46.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = strings.appName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = strings.slogan,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-                }
-
-                Surface(
-                    color = if (isSystemWallpaperActive) {
-                        EmeraldLive.copy(alpha = 0.16f)
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                    },
-                    shape = RoundedCornerShape(50),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isSystemWallpaperActive) EmeraldLive else MaterialTheme.colorScheme.primary
-                    )
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSystemWallpaperActive) EmeraldLive else MaterialTheme.colorScheme.primary
-                                )
+                        RonyBrandMark(modifier = Modifier.size(46.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = strings.appName,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = strings.slogan,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Surface(
+                        color = if (isSystemWallpaperActive) {
+                            EmeraldLive.copy(alpha = 0.16f)
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                        },
+                        contentColor = if (isSystemWallpaperActive) {
+                            EmeraldLive
+                        } else {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        },
+                        shape = RoundedCornerShape(50),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSystemWallpaperActive) EmeraldLive else MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isSystemWallpaperActive) {
-                                strings.systemLiveActive
-                            } else {
-                                strings.systemLiveInactive
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSystemWallpaperActive) EmeraldLive else MaterialTheme.colorScheme.primary
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isSystemWallpaperActive) {
+                                    strings.systemLiveActive
+                                } else {
+                                    strings.systemLiveInactive
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -821,18 +838,25 @@ private fun SectionHeader(
     actionLabel: String,
     onActionClick: () -> Unit
 ) {
-    Row(
+    FrostedBarSurface(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        shape = RoundedCornerShape(14.dp)
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        TextButton(onClick = onActionClick) {
-            Text(actionLabel)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            TextButton(onClick = onActionClick) {
+                Text(actionLabel)
+            }
         }
     }
 }
@@ -846,60 +870,70 @@ private fun CompactWallpaperThumb(
         val t = File(item.thumbnailPath)
         if (t.exists()) t else File(item.filePath)
     }
-    Column(
+    Surface(
         modifier = Modifier
             .width(108.dp)
             .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(9f / 14f)
-                .clip(MaterialTheme.shapes.medium)
-                .background(ObsidianBlack)
-        ) {
-            AsyncImage(
-                model = thumbFile,
-                contentDescription = item.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp),
-                color = if (item.mediaType == MediaType.GIF) ElectricViolet else SapphireBlue,
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Text(
-                    text = item.mediaType.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                )
-            }
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(6.dp),
-                color = Color.Black.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Text(
-                    text = SpeedPresets.format(item.playbackSpeed),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CyanGlow,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = MaterialTheme.shapes.medium,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
         )
+    ) {
+        Column(modifier = Modifier.padding(4.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(9f / 14f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ObsidianBlack)
+            ) {
+                AsyncImage(
+                    model = thumbFile,
+                    contentDescription = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp),
+                    color = if (item.mediaType == MediaType.GIF) ElectricViolet else SapphireBlue,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = item.mediaType.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = SpeedPresets.format(item.playbackSpeed),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyanGlow,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
     }
 }

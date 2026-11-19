@@ -87,9 +87,11 @@ import com.example.domain.model.SpeedCategory
 import com.example.domain.model.SpeedPresets
 import com.example.domain.model.WallpaperItem
 import com.example.domain.model.WallpaperTarget
+import com.example.ui.components.FrostedBarSurface
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.components.LiveMediaPreview
+import com.example.ui.components.VideoSoundControlSection
 import com.example.ui.i18n.LocalAppStrings
 import com.example.ui.theme.CyanGlow
 import com.example.ui.theme.ElectricViolet
@@ -114,6 +116,7 @@ fun PreviewScreen(
         speed: Float,
         isLooping: Boolean,
         isMuted: Boolean,
+        volume: Float,
         brightness: Float,
         scaleMode: ScaleMode,
         zoom: Float,
@@ -127,6 +130,7 @@ fun PreviewScreen(
         speed: Float,
         isLooping: Boolean,
         isMuted: Boolean,
+        volume: Float,
         brightness: Float,
         scaleMode: ScaleMode,
         zoom: Float,
@@ -159,6 +163,7 @@ fun PreviewScreen(
     }
     var isLooping by remember(wallpaper.id) { mutableStateOf(wallpaper.isLooping) }
     var isMuted by remember(wallpaper.id) { mutableStateOf(wallpaper.isMuted) }
+    var volume by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.volume) }
     var brightness by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.brightness) }
     var scaleMode by remember(wallpaper.id) { mutableStateOf(wallpaper.scaleMode) }
     var zoom by remember(wallpaper.id) { mutableFloatStateOf(wallpaper.zoom) }
@@ -190,6 +195,7 @@ fun PreviewScreen(
         speed,
         isLooping,
         isMuted,
+        volume,
         brightness,
         scaleMode,
         zoom,
@@ -203,6 +209,7 @@ fun PreviewScreen(
             speed,
             isLooping,
             isMuted,
+            volume,
             brightness,
             scaleMode,
             zoom,
@@ -216,17 +223,23 @@ fun PreviewScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.62f))
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
         // Top Studio Header
-        Row(
+        FrostedBarSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             IconButton(
                 onClick = onBack,
                 modifier = Modifier
@@ -275,6 +288,7 @@ fun PreviewScreen(
                     tint = if (wallpaper.isFavorite) RosePulse else MaterialTheme.colorScheme.onSurface
                 )
             }
+            }
         }
 
         // Live Interactive Wallpaper Canvas (Realistic Phone Frame or Full Bleed)
@@ -303,6 +317,7 @@ fun PreviewScreen(
                     playbackSpeed = speed,
                     isLooping = isLooping,
                     isMuted = isMuted,
+                    volume = volume,
                     brightness = brightness,
                     scaleMode = scaleMode,
                     zoom = zoom,
@@ -383,17 +398,51 @@ fun PreviewScreen(
                                 shape = CircleShape
                             ) {
                                 IconButton(
-                                    onClick = { isMuted = !isMuted },
+                                    onClick = {
+                                        if (isMuted) {
+                                            if (volume <= 0.01f) volume = 1.0f
+                                            isMuted = false
+                                        } else {
+                                            isMuted = true
+                                        }
+                                    },
                                     modifier = Modifier
                                         .minimumInteractiveComponentSize()
                                         .testTag("preview_mute_btn")
                                 ) {
                                     Icon(
-                                        imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                        imageVector = if (isMuted || volume <= 0.005f) {
+                                            Icons.AutoMirrored.Filled.VolumeOff
+                                        } else {
+                                            Icons.AutoMirrored.Filled.VolumeUp
+                                        },
                                         contentDescription = strings.muteAudio,
                                         tint = Color.White
                                     )
                                 }
+                            }
+                            Surface(
+                                onClick = {
+                                    val applyIdx = availableTabs.indexOf(PreviewTab.APPLY)
+                                    if (applyIdx >= 0) selectedTabIndex = applyIdx
+                                },
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = RoundedCornerShape(50),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isMuted || volume <= 0.005f) Color.White.copy(alpha = 0.25f)
+                                    else CyanGlow.copy(alpha = 0.7f)
+                                ),
+                                modifier = Modifier.testTag("preview_volume_badge_btn")
+                            ) {
+                                val pct = if (isMuted) 0 else (volume * 100f).roundToInt()
+                                Text(
+                                    text = "$pct%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isMuted || volume <= 0.005f) Color.White.copy(alpha = 0.75f) else CyanGlow,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
+                                )
                             }
                         }
                     }
@@ -750,6 +799,16 @@ fun PreviewScreen(
                             )
                         }
 
+                        if (wallpaper.mediaType == MediaType.VIDEO) {
+                            VideoSoundControlSection(
+                                isMuted = isMuted,
+                                volume = volume,
+                                onMuteChange = { isMuted = it },
+                                onVolumeChange = { volume = it },
+                                testTagPrefix = "preview_framing"
+                            )
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -771,6 +830,7 @@ fun PreviewScreen(
                                     speedInputText = "1.00"
                                     isLooping = true
                                     isMuted = true
+                                    volume = 1.0f
                                     brightness = 1.0f
                                     scaleMode = ScaleMode.CROP
                                     zoom = 1.0f
@@ -791,6 +851,15 @@ fun PreviewScreen(
                     }
 
                     PreviewTab.APPLY -> {
+                        if (wallpaper.mediaType == MediaType.VIDEO) {
+                            VideoSoundControlSection(
+                                isMuted = isMuted,
+                                volume = volume,
+                                onMuteChange = { isMuted = it },
+                                onVolumeChange = { volume = it },
+                                testTagPrefix = "preview_apply"
+                            )
+                        }
                         Text(
                             text = strings.targetScreenTitle,
                             style = MaterialTheme.typography.titleSmall,
@@ -833,6 +902,7 @@ fun PreviewScreen(
                         speed,
                         isLooping,
                         isMuted,
+                        volume,
                         brightness,
                         scaleMode,
                         zoom,

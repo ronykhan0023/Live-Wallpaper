@@ -7,7 +7,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Looper
 import android.service.wallpaper.WallpaperService
+import androidx.media3.common.C
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.MediaStorageManager
@@ -24,6 +27,7 @@ import com.example.domain.model.SpeedCategory
 import com.example.domain.model.SpeedPresets
 import com.example.domain.model.ThemeMode
 import com.example.domain.model.WallpaperTarget
+import com.example.engine.ExoPlayerAudioHelper
 import com.example.engine.GifFrameDecoder
 import android.appwidget.AppWidgetManager
 import android.service.quicksettings.TileService
@@ -219,6 +223,7 @@ class ExampleRobolectricTest {
     @Test
     fun `custom photo logo and uploaded payment drawables exist and whatsapp strings hide phone number`() {
         assertNotNull(context.getDrawable(R.drawable.ic_rony_logo_photo))
+        assertNotNull(context.getDrawable(R.drawable.bg_gta6_edition))
         assertNotNull(context.getDrawable(R.drawable.ic_whatsapp))
         assertNotNull(context.getDrawable(R.drawable.img_bkash_logo))
         assertNotNull(context.getDrawable(R.drawable.img_nagad_logo))
@@ -516,6 +521,204 @@ class ExampleRobolectricTest {
 
         assertTrue(repository.hasCompletedOnboarding.first())
         assertTrue(repository.settings.first().hasCompletedOnboarding)
+    }
+
+    @Test
+    fun `muted exoplayer disables audio track type and zeroes volume while unmute restores it`() {
+        val player = ExoPlayerAudioHelper.configureBuilderAudio(
+            ExoPlayer.Builder(context).setLooper(Looper.getMainLooper())
+        ).build()
+        try {
+            ExoPlayerAudioHelper.applyMuteState(player, isMuted = true)
+            assertEquals(0f, player.volume, 0.0001f)
+            assertTrue(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+
+            // Re-applying mute remains idempotent with audio track disabled
+            ExoPlayerAudioHelper.applyMuteState(player, isMuted = true)
+            assertEquals(0f, player.volume, 0.0001f)
+            assertTrue(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+
+            // Unmuting enables audio track and restores full volume
+            ExoPlayerAudioHelper.applyMuteState(player, isMuted = false)
+            assertEquals(1f, player.volume, 0.0001f)
+            assertFalse(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+
+            // Custom fractional volume (e.g., 35%) keeps audio track active at exact gain
+            ExoPlayerAudioHelper.applyAudioState(player, isMuted = false, volume = 0.35f)
+            assertEquals(0.35f, player.volume, 0.0001f)
+            assertFalse(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+
+            // Muting even with stored volume > 0 disables audio track and forces volume 0f
+            ExoPlayerAudioHelper.applyAudioState(player, isMuted = true, volume = 0.75f)
+            assertEquals(0f, player.volume, 0.0001f)
+            assertTrue(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+
+            // Dragging volume down to 0% disables audio track cleanly
+            ExoPlayerAudioHelper.applyAudioState(player, isMuted = false, volume = 0.0f)
+            assertEquals(0f, player.volume, 0.0001f)
+            assertTrue(C.TRACK_TYPE_AUDIO in player.trackSelectionParameters.disabledTrackTypes)
+        } finally {
+            player.release()
+        }
+    }
+
+    @Test
+    fun `custom video volume persists in room and active datastore config`() = runTest {
+        val videoId = database.wallpaperDao().insertWallpaper(
+            WallpaperEntity(
+                title = "Sound Video",
+                filePath = "/tmp/sound_video.mp4",
+                thumbnailPath = "",
+                mediaType = MediaType.VIDEO.name,
+                mimeType = "video/mp4",
+                fileSizeBytes = 500L,
+                durationMs = 15_000L,
+                width = 1080,
+                height = 1920
+            )
+        )
+        repository.setActiveWallpaper(videoId, WallpaperTarget.BOTH)
+        repository.updateWallpaperCustomization(
+            id = videoId,
+            playbackSpeed = 1.0f,
+            isLooping = true,
+            isMuted = false,
+            brightness = 1.0f,
+            scaleMode = ScaleMode.CROP,
+            zoom = 1.0f,
+            offsetX = 0f,
+            offsetY = 0f,
+            trimStartMs = 0L,
+            trimEndMs = 15_000L,
+            volume = 0.42f
+        )
+
+        val savedItem = repository.observeWallpaper(videoId).first()
+        assertNotNull(savedItem)
+        assertFalse(savedItem!!.isMuted)
+        assertEquals(0.42f, savedItem.volume, 0.001f)
+
+        val activeCfg = repository.activeWallpaperConfig.first()
+        assertFalse(activeCfg.isMuted)
+        assertEquals(0.42f, activeCfg.volume, 0.001f)
+    }
+
+    @Test
+    fun `replaceWallpaperMedia replaces file metadata deletes old file and preserves favorite and active config`() = runTest {
+        val originalPhoto = File(context.cacheDir, "original_photo.png")
+        val bmp = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+        originalPhoto.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bmp.recycle()
+
+        val imported = repository.importMedia(Uri.fromFile(originalPhoto), MediaType.IMAGE).getOrThrow()
+        val oldPath = imported.filePath
+        assertTrue(File(oldPath).exists())
+
+        repository.toggleFavorite(imported.id)
+        repository.setActiveWallpaper(imported.id, WallpaperTarget.BOTH)
+
+        val replacementGif = File(context.cacheDir, "replacement_anim.gif")
+        replacementGif.writeBytes(buildMinimalGifBytes())
+
+        val replaced = repository.replaceWallpaperMedia(imported.id, Uri.fromFile(replacementGif)).getOrThrow()
+        assertEquals(imported.id, replaced.id)
+        assertEquals(MediaType.GIF, replaced.mediaType)
+        assertTrue(replaced.isFavorite)
+        assertTrue(replaced.isActive)
+        assertTrue(File(replaced.filePath).exists())
+        assertFalse(File(oldPath).exists())
+
+        val activeCfg = repository.activeWallpaperConfig.first()
+        assertEquals(imported.id, activeCfg.wallpaperId)
+        assertEquals(MediaType.GIF, activeCfg.mediaType)
+        assertEquals(replaced.filePath, activeCfg.filePath)
+    }
+
+    @Test
+    fun `discardSessionImports deletes unconfirmed session imports from room and disk`() = runTest {
+        val tempGif = File(context.cacheDir, "session_temp.gif")
+        tempGif.writeBytes(buildMinimalGifBytes())
+
+        val imported = repository.importMedia(Uri.fromFile(tempGif), MediaType.GIF).getOrThrow()
+        assertTrue(File(imported.filePath).exists())
+        assertTrue(repository.allWallpapers.first().any { it.id == imported.id })
+
+        repository.discardSessionImports(listOf(imported.id))
+
+        assertFalse(File(imported.filePath).exists())
+        assertFalse(repository.allWallpapers.first().any { it.id == imported.id })
+    }
+
+    @Test
+    fun `removeItemFromPlaylist removes fourth item switches active if needed and cleans unused file`() = runTest {
+        val items = (1..4).map { idx ->
+            val tmp = File(context.cacheDir, "pl_item_$idx.gif").apply {
+                writeBytes(buildMinimalGifBytes())
+            }
+            repository.importMedia(Uri.fromFile(tmp), MediaType.GIF).getOrThrow()
+        }
+        val playlistId = repository.createPlaylist(
+            name = "Four Items",
+            wallpaperIds = items.map { it.id },
+            intervalValue = 10,
+            intervalUnit = ScheduleUnit.MINUTES,
+            isShuffle = false
+        )
+        repository.activatePlaylist(playlistId, WallpaperTarget.BOTH)
+
+        // Advance active index to the 4th item, then remove it
+        repository.skipPlaylistToNext()
+        repository.skipPlaylistToNext()
+        repository.skipPlaylistToNext()
+        assertEquals(items[3].id, repository.activeWallpaperConfig.first().wallpaperId)
+
+        val updated = repository.removeItemFromPlaylist(
+            playlistId = playlistId,
+            wallpaperId = items[3].id,
+            alsoDeleteIfUnused = true
+        )
+        assertNotNull(updated)
+        assertEquals(items.take(3).map { it.id }, updated!!.items.map { it.id })
+        assertEquals(items[0].id, repository.activeWallpaperConfig.first().wallpaperId)
+        assertFalse(File(items[3].filePath).exists())
+        assertFalse(repository.allWallpapers.first().any { it.id == items[3].id })
+    }
+
+    @Test
+    fun `replaceItemInPlaylist swaps single item in place and preserves shared item for other playlists`() = runTest {
+        val f1 = File(context.cacheDir, "shared_1.gif").apply { writeBytes(buildMinimalGifBytes()) }
+        val f2 = File(context.cacheDir, "shared_2.gif").apply { writeBytes(buildMinimalGifBytes()) }
+        val item1 = repository.importMedia(Uri.fromFile(f1), MediaType.GIF).getOrThrow()
+        val item2 = repository.importMedia(Uri.fromFile(f2), MediaType.GIF).getOrThrow()
+
+        val p1 = repository.createPlaylist("Only Here", listOf(item1.id), 1, ScheduleUnit.DAYS, false)
+        val replA = File(context.cacheDir, "repl_photo.png")
+        val bmp = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888)
+        replA.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bmp.recycle()
+
+        // Single-playlist replace swaps item1 in place
+        val res1 = repository.replaceItemInPlaylist(p1, item1.id, Uri.fromFile(replA))
+        assertTrue(res1.isSuccess)
+        val p1After = res1.getOrNull()!!
+        assertEquals(1, p1After.items.size)
+        assertEquals(item1.id, p1After.items.first().id)
+        assertEquals(MediaType.IMAGE, p1After.items.first().mediaType)
+
+        // Shared item across two playlists keeps original item2 intact in p3 when replaced in p2
+        val p2 = repository.createPlaylist("Mix A", listOf(item2.id), 1, ScheduleUnit.DAYS, false)
+        val p3 = repository.createPlaylist("Mix B", listOf(item2.id), 2, ScheduleUnit.DAYS, false)
+
+        val replB = File(context.cacheDir, "repl_b.gif").apply { writeBytes(buildMinimalGifBytes()) }
+        val res2 = repository.replaceItemInPlaylist(p2, item2.id, Uri.fromFile(replB))
+        assertTrue(res2.isSuccess)
+        val p2After = res2.getOrNull()!!
+        assertEquals(1, p2After.items.size)
+        assertTrue(p2After.items.first().id != item2.id)
+
+        val p3After = repository.allPlaylists.first().find { it.id == p3 }!!
+        assertEquals(listOf(item2.id), p3After.items.map { it.id })
+        assertTrue(File(item2.filePath).exists())
     }
 
     private fun buildMinimalGifBytes(): ByteArray {

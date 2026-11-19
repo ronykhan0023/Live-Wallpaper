@@ -34,8 +34,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.R
 import com.example.domain.model.WallpaperItem
+import com.example.ui.components.FrostedBarSurface
+import com.example.ui.components.GlassCard
 import com.example.ui.components.GradientPrimaryButton
 import com.example.ui.components.WallpaperMediaCard
 import com.example.ui.i18n.LocalAppStrings
@@ -48,6 +52,7 @@ fun FavoritesScreen(
     onApplyClick: (WallpaperItem) -> Unit,
     onToggleFavorite: (Long) -> Unit,
     onRename: (Long, String) -> Unit,
+    onReplace: (WallpaperItem) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -62,50 +67,58 @@ fun FavoritesScreen(
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = strings.favorites,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
+        FrostedBarSurface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(
+                text = strings.favorites,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         if (favorites.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_empty_vault),
-                        contentDescription = strings.emptyFavoritesTitle,
-                        modifier = Modifier
-                            .size(180.dp)
-                            .clip(MaterialTheme.shapes.large),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Text(
-                        text = strings.emptyFavoritesTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = strings.emptyFavoritesSubtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    GradientPrimaryButton(
-                        text = strings.wallpaperLibrary,
-                        icon = Icons.Filled.PhotoLibrary,
-                        onClick = onBrowseLibrary,
-                        testTag = "favorites_browse_library_btn"
-                    )
+                GlassCard(contentPadding = PaddingValues(20.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_empty_vault),
+                            contentDescription = strings.emptyFavoritesTitle,
+                            modifier = Modifier
+                                .size(170.dp)
+                                .clip(MaterialTheme.shapes.large),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = strings.emptyFavoritesTitle,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = strings.emptyFavoritesSubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        GradientPrimaryButton(
+                            text = strings.wallpaperLibrary,
+                            icon = Icons.Filled.PhotoLibrary,
+                            onClick = onBrowseLibrary,
+                            testTag = "favorites_browse_library_btn"
+                        )
+                    }
                 }
             }
         } else {
@@ -126,6 +139,7 @@ fun FavoritesScreen(
                             renameTarget = item
                             renameText = item.title
                         },
+                        onReplaceClick = { onReplace(item) },
                         onDeleteClick = { deleteTarget = item }
                     )
                 }

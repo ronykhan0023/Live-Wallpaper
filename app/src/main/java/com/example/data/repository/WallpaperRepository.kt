@@ -87,6 +87,7 @@ class WallpaperRepository(
                 playbackSpeed = currentSettings.defaultSpeed,
                 isLooping = currentSettings.defaultLooping,
                 isMuted = true,
+                volume = 1.0f,
                 brightness = 1.0f,
                 scaleMode = ScaleMode.CROP.name,
                 zoom = 1.0f,
@@ -127,6 +128,61 @@ class WallpaperRepository(
         return Result.success(Unit)
     }
 
+    suspend fun replaceWallpaperMedia(targetId: Long, uri: Uri): Result<WallpaperItem> {
+        val existing = wallpaperDao.getWallpaperById(targetId)
+            ?: return Result.failure(IllegalArgumentException("Wallpaper not found"))
+        val importedResult = mediaStorageManager.importMediaFromUri(uri, forcedType = null)
+        return importedResult.map { meta ->
+            val updatedEntity = existing.copy(
+                title = meta.title,
+                filePath = meta.filePath,
+                thumbnailPath = meta.thumbnailPath,
+                mediaType = meta.mediaType.name,
+                mimeType = meta.mimeType,
+                fileSizeBytes = meta.fileSizeBytes,
+                durationMs = meta.durationMs,
+                width = meta.width,
+                height = meta.height,
+                trimStartMs = 0L,
+                trimEndMs = if (meta.mediaType == MediaType.VIDEO) meta.durationMs else 0L
+            )
+            wallpaperDao.updateWallpaper(updatedEntity)
+            if (existing.filePath != meta.filePath || existing.thumbnailPath != meta.thumbnailPath) {
+                mediaStorageManager.deleteMediaFiles(existing.filePath, existing.thumbnailPath)
+            }
+            val domain = updatedEntity.toDomain()
+            if (domain.isActive) {
+                settingsDataStore.saveActiveWallpaperConfig(domain)
+            }
+            domain
+        }
+    }
+
+    suspend fun discardSessionImports(ids: Collection<Long>) {
+        ids.distinct().forEach { id ->
+            val existing = wallpaperDao.getWallpaperById(id) ?: return@forEach
+            if (!existing.isActive) {
+                wallpaperDao.deleteWallpaperById(id)
+                mediaStorageManager.deleteMediaFiles(existing.filePath, existing.thumbnailPath)
+            }
+        }
+    }
+
+    suspend fun cleanupRemovedPlaylistMedia(
+        idsToRemove: Collection<Long>,
+        sessionImportedIds: Set<Long>
+    ) {
+        idsToRemove.distinct().forEach { id ->
+            val existing = wallpaperDao.getWallpaperById(id) ?: return@forEach
+            if (existing.isActive) return@forEach
+            val usedInOtherPlaylists = playlistDao.countPlaylistsContainingWallpaper(id) > 0
+            if (id in sessionImportedIds || !usedInOtherPlaylists) {
+                wallpaperDao.deleteWallpaperById(id)
+                mediaStorageManager.deleteMediaFiles(existing.filePath, existing.thumbnailPath)
+            }
+        }
+    }
+
     suspend fun updateWallpaperCustomization(
         id: Long,
         playbackSpeed: Float,
@@ -138,9 +194,11 @@ class WallpaperRepository(
         offsetX: Float,
         offsetY: Float,
         trimStartMs: Long,
-        trimEndMs: Long
+        trimEndMs: Long,
+        volume: Float = 1.0f
     ) {
         val clampedSpeed = SpeedPresets.clamp(playbackSpeed)
+        val clampedVolume = volume.coerceIn(0f, 1f)
         val clampedBrightness = brightness.coerceIn(0.3f, 1.2f)
         val clampedZoom = zoom.coerceIn(1.0f, 3.0f)
         val clampedOffsetX = offsetX.coerceIn(-1f, 1f)
@@ -153,6 +211,7 @@ class WallpaperRepository(
             playbackSpeed = clampedSpeed,
             isLooping = isLooping,
             isMuted = isMuted,
+            volume = clampedVolume,
             brightness = clampedBrightness,
             scaleMode = scaleMode.name,
             zoom = clampedZoom,
@@ -250,6 +309,60 @@ class WallpaperRepository(
             deactivatePlaylist()
         }
         playlistDao.deletePlaylistById(playlistId)
+    }
+
+    suspend fun removeItemFromPlaylist(
+        playlistId: Long,
+        wallpaperId: Long,
+        alsoDeleteIfUnused: Boolean = false
+    ): WallpaperPlaylist? {
+        val raw = playlistDao.getPlaylistWithItems(playlistId) ?: return null
+        val playlist = toOrderedPlaylist(raw)
+        val remainingIds = playlist.items.map { it.id }.filter { it != wallpaperId }
+        if (remainingIds.isEmpty()) return playlist
+        val updated = updatePlaylist(
+            playlistId = playlistId,
+            name = playlist.name,
+            wallpaperIds = remainingIds,
+            intervalValue = playlist.intervalValue,
+            intervalUnit = playlist.intervalUnit,
+            isShuffle = playlist.isShuffle
+        )
+        if (alsoDeleteIfUnused) {
+            cleanupRemovedPlaylistMedia(listOf(wallpaperId), emptySet())
+        }
+        return updated
+    }
+
+    suspend fun replaceItemInPlaylist(
+        playlistId: Long,
+        oldWallpaperId: Long,
+        uri: Uri
+    ): Result<WallpaperPlaylist?> {
+        val raw = playlistDao.getPlaylistWithItems(playlistId)
+            ?: return Result.failure(IllegalArgumentException("Playlist not found"))
+        val playlist = toOrderedPlaylist(raw)
+        val usageCount = playlistDao.countPlaylistsContainingWallpaper(oldWallpaperId)
+        return if (usageCount <= 1) {
+            replaceWallpaperMedia(oldWallpaperId, uri).map {
+                val refreshed = playlistDao.getPlaylistWithItems(playlistId)
+                refreshed?.let { toOrderedPlaylist(it) }
+            }
+        } else {
+            importMedia(uri, forcedType = null).map { newItem ->
+                val newIds = playlist.items.map { item ->
+                    if (item.id == oldWallpaperId) newItem.id else item.id
+                }
+                updatePlaylist(
+                    playlistId = playlistId,
+                    name = playlist.name,
+                    wallpaperIds = newIds,
+                    intervalValue = playlist.intervalValue,
+                    intervalUnit = playlist.intervalUnit,
+                    isShuffle = playlist.isShuffle
+                )
+            }
+        }
     }
 
     suspend fun activatePlaylist(playlistId: Long, target: WallpaperTarget): WallpaperPlaylist? {

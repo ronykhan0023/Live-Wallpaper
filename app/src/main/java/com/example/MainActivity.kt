@@ -60,6 +60,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -84,6 +85,7 @@ import com.example.domain.model.AppLanguage
 import com.example.domain.model.MediaType
 import com.example.domain.model.ThemeMode
 import com.example.ui.components.DeveloperDonationDialog
+import com.example.ui.components.GtaEditionBackdrop
 import com.example.ui.components.SplashIntroOverlay
 import com.example.ui.i18n.LocalAppStrings
 import com.example.ui.i18n.stringsFor
@@ -153,7 +155,7 @@ class MainActivity : ComponentActivity() {
                 RonyLiveWallpaperTheme(themeMode = settings.themeMode) {
                     RonyLiveWallpaperAppRoot(
                         viewModel = viewModel,
-                        appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
+                        appVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2"
                     )
                 }
             }
@@ -256,6 +258,15 @@ private fun RonyLiveWallpaperAppRoot(
                 UiEvent.PlaylistUpdated -> {
                     snackbarHostState.showSnackbar(strings.playlistUpdatedToast)
                 }
+                UiEvent.MediaReplaced -> {
+                    snackbarHostState.showSnackbar(strings.replaceSuccess)
+                }
+                UiEvent.MediaReplaceFailed -> {
+                    snackbarHostState.showSnackbar(strings.replaceError)
+                }
+                UiEvent.PlaylistLastItemProtected -> {
+                    snackbarHostState.showSnackbar(strings.cannotRemoveLastPlaylistItem)
+                }
             }
         }
     }
@@ -279,9 +290,24 @@ private fun RonyLiveWallpaperAppRoot(
         if (uris.isNotEmpty()) viewModel.importMultipleMedia(uris, MediaType.IMAGE)
     }
 
+    var pendingLibraryReplaceId by remember { mutableStateOf<Long?>(null) }
+    val replaceLibraryMediaLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val targetId = pendingLibraryReplaceId
+        pendingLibraryReplaceId = null
+        if (uri != null && targetId != null) {
+            viewModel.replaceWallpaperMedia(targetId, uri)
+        }
+    }
+
     val launchImportVideo = { videoPickerLauncher.launch(arrayOf("video/*")) }
     val launchImportGif = { gifPickerLauncher.launch(arrayOf("image/gif")) }
     val launchImportPhotos = { photoPickerLauncher.launch(arrayOf("image/*")) }
+    val launchReplaceLibraryItem: (Long) -> Unit = { targetId ->
+        pendingLibraryReplaceId = targetId
+        replaceLibraryMediaLauncher.launch(arrayOf("video/*", "image/*"))
+    }
     val isTopLevelRoute = currentDestination == null ||
         currentDestination.hasRoute<HomeRoute>() ||
         currentDestination.hasRoute<WallpapersRoute>() ||
@@ -316,15 +342,20 @@ private fun RonyLiveWallpaperAppRoot(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        GtaEditionBackdrop(modifier = Modifier.fillMaxSize())
+
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val useNavRail = maxWidth >= 600.dp
 
             Scaffold(
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+                containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (isTopLevelRoute && !useNavRail) {
-                        NavigationBar {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+                        ) {
                             topLevelTabs.forEach { tab ->
                                 val selected = when (tab.route) {
                                     HomeRoute -> currentDestination?.hasRoute<HomeRoute>() == true
@@ -356,7 +387,9 @@ private fun RonyLiveWallpaperAppRoot(
                         .padding(innerPadding)
                 ) {
                     if (isTopLevelRoute && useNavRail) {
-                        NavigationRail {
+                        NavigationRail(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+                        ) {
                             Spacer(modifier = Modifier.height(12.dp))
                             topLevelTabs.forEach { tab ->
                                 val selected = when (tab.route) {
@@ -465,6 +498,7 @@ private fun RonyLiveWallpaperAppRoot(
                                     },
                                     onToggleFavorite = viewModel::toggleFavorite,
                                     onRename = viewModel::renameWallpaper,
+                                    onReplace = { item -> launchReplaceLibraryItem(item.id) },
                                     onDelete = viewModel::deleteWallpaper,
                                     modifier = Modifier.statusBarsPadding()
                                 )
@@ -482,6 +516,7 @@ private fun RonyLiveWallpaperAppRoot(
                                     },
                                     onToggleFavorite = viewModel::toggleFavorite,
                                     onRename = viewModel::renameWallpaper,
+                                    onReplace = { item -> launchReplaceLibraryItem(item.id) },
                                     onDelete = viewModel::deleteWallpaper,
                                     modifier = Modifier.statusBarsPadding()
                                 )
@@ -517,7 +552,7 @@ private fun RonyLiveWallpaperAppRoot(
                                     initialTarget = settings.preferredTarget,
                                     onBack = { navController.popBackStack() },
                                     onToggleFavorite = viewModel::toggleFavorite,
-                                    onSaveCustomization = { id, speed, looping, muted, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
+                                    onSaveCustomization = { id, speed, looping, muted, volume, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
                                         viewModel.updateWallpaperCustomization(
                                             id = id,
                                             playbackSpeed = speed,
@@ -529,10 +564,11 @@ private fun RonyLiveWallpaperAppRoot(
                                             offsetX = ox,
                                             offsetY = oy,
                                             trimStartMs = trimStart,
-                                            trimEndMs = trimEnd
+                                            trimEndMs = trimEnd,
+                                            volume = volume
                                         )
                                     },
-                                    onApplyWallpaper = { id, speed, looping, muted, brightness, scale, zoom, ox, oy, trimStart, trimEnd, target ->
+                                    onApplyWallpaper = { id, speed, looping, muted, volume, brightness, scale, zoom, ox, oy, trimStart, trimEnd, target ->
                                         viewModel.updateWallpaperCustomization(
                                             id = id,
                                             playbackSpeed = speed,
@@ -544,7 +580,8 @@ private fun RonyLiveWallpaperAppRoot(
                                             offsetX = ox,
                                             offsetY = oy,
                                             trimStartMs = trimStart,
-                                            trimEndMs = trimEnd
+                                            trimEndMs = trimEnd,
+                                            volume = volume
                                         )
                                         viewModel.activateAndPrepareWallpaper(id, target) {
                                             WallpaperHelper.launchLiveWallpaperPicker(context)
@@ -569,22 +606,27 @@ private fun RonyLiveWallpaperAppRoot(
                                     onImportPhotos = launchImportPhotos,
                                     onImportVideos = launchImportVideo,
                                     onImportGifs = launchImportGif,
-                                    onCreateAndActivatePlaylist = { name, ids, intervalVal, unit, shuffle, target ->
-                                        viewModel.createPlaylist(
+                                    onImportForSession = viewModel::importForPlaylistSession,
+                                    onDiscardSessionImports = viewModel::discardSessionImports,
+                                    onCommitPlaylistEditor = { existingId, name, ids, intervalVal, unit, shuffle, target, stagedCustomizations, pendingDeleteIds, replacedOldIds, sessionImportedIds ->
+                                        viewModel.commitPlaylistEditor(
+                                            existingPlaylistId = existingId,
                                             name = name,
                                             wallpaperIds = ids,
                                             intervalValue = intervalVal,
                                             intervalUnit = unit,
                                             isShuffle = shuffle,
-                                            activateImmediately = true,
                                             target = target,
-                                            onActivated = {
+                                            stagedCustomizations = stagedCustomizations,
+                                            pendingDeleteIds = pendingDeleteIds,
+                                            replacedOldIds = replacedOldIds,
+                                            sessionImportedIds = sessionImportedIds,
+                                            onActivatedAfterCreate = {
                                                 WallpaperHelper.launchLiveWallpaperPicker(context)
                                             }
                                         )
                                     },
-                                    onUpdatePlaylist = viewModel::updatePlaylist,
-                                    onSaveItemCustomization = { id, speed, looping, muted, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
+                                    onSaveItemCustomization = { id, speed, looping, muted, volume, brightness, scale, zoom, ox, oy, trimStart, trimEnd ->
                                         viewModel.updateWallpaperCustomization(
                                             id = id,
                                             playbackSpeed = speed,
@@ -597,9 +639,12 @@ private fun RonyLiveWallpaperAppRoot(
                                             offsetY = oy,
                                             trimStartMs = trimStart,
                                             trimEndMs = trimEnd,
-                                            notifyIfActive = true
+                                            notifyIfActive = true,
+                                            volume = volume
                                         )
                                     },
+                                    onRemoveItemFromPlaylist = viewModel::removeItemFromPlaylist,
+                                    onReplaceItemInPlaylist = viewModel::replaceItemInPlaylist,
                                     onActivatePlaylist = { playlistId, target ->
                                         viewModel.activatePlaylist(playlistId, target) {
                                             WallpaperHelper.launchLiveWallpaperPicker(context)

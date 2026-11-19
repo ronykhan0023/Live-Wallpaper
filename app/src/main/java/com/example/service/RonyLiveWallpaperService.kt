@@ -21,6 +21,7 @@ import com.example.R
 import com.example.RonyWallpaperApp
 import com.example.domain.model.ActiveWallpaperConfig
 import com.example.domain.model.MediaType
+import com.example.engine.ExoPlayerAudioHelper
 import com.example.engine.GifSurfaceRenderer
 import com.example.engine.ImageSurfaceRenderer
 import com.example.engine.WallpaperGlRenderer
@@ -124,6 +125,8 @@ class RonyLiveWallpaperService : WallpaperService() {
                     runCatching { repo.advancePlaylistIfDue() }
                 }
                 exoPlayer?.let { player ->
+                    ExoPlayerAudioHelper.applyAudioState(player, currentConfig.isMuted, currentConfig.volume)
+                    player.playbackParameters = PlaybackParameters(currentConfig.playbackSpeed)
                     if (!player.isPlaying) {
                         player.playWhenReady = true
                         player.play()
@@ -196,7 +199,9 @@ class RonyLiveWallpaperService : WallpaperService() {
             if (glRenderer == null) {
                 val renderer = WallpaperGlRenderer(holder) { surface ->
                     engineScope.launch {
-                        attachExoPlayer(surface, config, path)
+                        val latestConfig = currentConfig
+                        val latestPath = latestConfig.filePath ?: path
+                        attachExoPlayer(surface, latestConfig, latestPath)
                     }
                 }
                 glRenderer = renderer
@@ -212,6 +217,7 @@ class RonyLiveWallpaperService : WallpaperService() {
                 activeTrimEndMs != config.trimEndMs
             ) {
                 exoPlayer?.let { player ->
+                    ExoPlayerAudioHelper.applyAudioState(player, config.isMuted, config.volume)
                     player.setMediaItem(buildMediaItem(path, config.trimStartMs, config.trimEndMs))
                     player.prepare()
                     player.playWhenReady = isVisible
@@ -235,7 +241,7 @@ class RonyLiveWallpaperService : WallpaperService() {
             exoPlayer?.let { player ->
                 player.playbackParameters = PlaybackParameters(config.playbackSpeed)
                 player.repeatMode = if (config.isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-                player.volume = if (config.isMuted) 0f else 1f
+                ExoPlayerAudioHelper.applyAudioState(player, config.isMuted, config.volume)
             }
         }
 
@@ -254,18 +260,39 @@ class RonyLiveWallpaperService : WallpaperService() {
                     }
                 )
 
-            val player = ExoPlayer.Builder(applicationContext, renderersFactory)
+            val player = ExoPlayerAudioHelper.configureBuilderAudio(
+                ExoPlayer.Builder(applicationContext, renderersFactory)
+            )
                 .build()
                 .apply {
                     setVideoSurface(surface)
+                    ExoPlayerAudioHelper.applyAudioState(this, config.isMuted, config.volume)
                     setMediaItem(buildMediaItem(path, config.trimStartMs, config.trimEndMs))
                     playbackParameters = PlaybackParameters(config.playbackSpeed)
                     repeatMode = if (config.isLooping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-                    volume = if (config.isMuted) 0f else 1f
                     addListener(object : Player.Listener {
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             if (videoSize.width > 0 && videoSize.height > 0) {
                                 glRenderer?.updateVideoSize(videoSize.width, videoSize.height)
+                            }
+                        }
+
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            ExoPlayerAudioHelper.applyAudioState(this@apply, currentConfig.isMuted, currentConfig.volume)
+                        }
+
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            ExoPlayerAudioHelper.applyAudioState(this@apply, currentConfig.isMuted, currentConfig.volume)
+                        }
+
+                        override fun onVolumeChanged(volume: Float) {
+                            val expected = if (currentConfig.isMuted || currentConfig.volume <= 0.005f) {
+                                0f
+                            } else {
+                                currentConfig.volume.coerceIn(0f, 1f)
+                            }
+                            if (kotlin.math.abs(volume - expected) > 0.015f) {
+                                ExoPlayerAudioHelper.applyAudioState(this@apply, currentConfig.isMuted, currentConfig.volume)
                             }
                         }
                     })
